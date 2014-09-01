@@ -252,7 +252,6 @@ proc convergence {eps radius} {
        # even though seed set was sufficiently large, 
        # the found domain is too small. return nothing and 
        # let 'partition' try again with smaller radius
-       puts "less than 5"
        return {{} {}}
     }
     return $curr

@@ -149,9 +149,8 @@ class HingeFind:
                 print "convergence - warning: a domain did not converge."
                 break
 
-            if curr[0].numAtoms() < 5 or not curr[0]:
-                print "Less than 5"
-                return [[None], [None]]
+        if curr[0].numAtoms() < 5 or not curr[0]:
+            return [None, None]
 
         return curr
 
