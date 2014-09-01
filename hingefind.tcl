@@ -221,6 +221,7 @@ proc convergence {eps radius} {
 
     # initiate search in seed-subset
     set startids [seed $ca1 $ca2 $radius]
+    puts "Seed: [[atomselect $mol1 "index [lindex $startids 0 ]"] get resid]"
     set startids1 [lindex $startids 0]
     set startids2 [lindex $startids 1]
     if {[llength $startids1] < 5} {
@@ -239,8 +240,8 @@ proc convergence {eps radius} {
     set prev [superimpose $eps]
     set curr [superimpose $eps]
     while {[string compare $prev $curr]} {
-	set prev $curr
-	set curr [superimpose $eps]	
+    set prev $curr
+    set curr [superimpose $eps] 
 	incr count
 	if {$count == $maxcounter} {
 	    puts "convergence - warning: a domain did not converge."
@@ -251,6 +252,7 @@ proc convergence {eps radius} {
        # even though seed set was sufficiently large, 
        # the found domain is too small. return nothing and 
        # let 'partition' try again with smaller radius
+       puts "less than 5"
        return {{} {}}
     }
     return $curr
@@ -417,6 +419,12 @@ proc partition {eps} {
  	set domain [convergence $eps $seedradius]
         set domain1 [lindex $domain 0]
         set domain2 [lindex $domain 1]
+
+    if {[llength [lindex $domain 0]] > 0} {
+        set tmp_reslist [[atomselect $mol1 "index [lindex $domain 0 ]"] get resid]
+        puts "Domain: $tmp_reslist Size: [llength $tmp_reslist]"
+    }
+    # puts [$ca1 get resid]
 
 	if {[llength $domain1] == 0} {
 	    # convergence found nothing, try smaller seedradius
@@ -613,3 +621,6 @@ proc rot {} {
     partition 1
     hinge 1 2
 }
+
+load
+rot

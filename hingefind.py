@@ -44,11 +44,20 @@ class HingeFind:
         return [l for l in list1 if l not in list2]
 
     def arraystr(self,a):
-    	return " ".join([str(x) for x in a])
+        return " ".join([str(x) for x in a])
 
-    def indexSel(self,structure,indices):
-        return structure.select("index "+self.arraystr(indices))
+    def indexSel(self,structure,indices):        
+        if len(indices) > 0:
+            return structure.select("index "+self.arraystr(indices))
+        else :
+            return None
 
+    def resStr(self,structure):                
+        if structure:
+            return self.arraystr(structure.getResnums())
+        else :
+            return None
+    
     def criterion (self,mob_sel,ref_sel,eps):
     # def criterion (self,mobile,reference,eps):
         mob_coord = mob_sel.getCoords()
@@ -79,11 +88,15 @@ class HingeFind:
     	survivor = self.criterion(self.mobCA,self.refCA,eps)
     	mob_subset = survivor[0]
     	ref_subset = survivor[1]
-    	if mob_subset.numAtoms() < 5:
-    		return survivor
+    	if mob_subset:
+            if mob_subset.numAtoms() < 5:
+    		  return survivor
 
-    	t = pd.calcTransformation(mob_subset,ref_subset)
-    	pd.applyTransformation(t,self.mobile)
+            t = pd.calcTransformation(mob_subset,ref_subset)
+            pd.applyTransformation(t,self.mobile)
+        else:
+            return [None,None]
+
     	return survivor    	
 
     def seed(self,mob_sel,ref_sel,radius):
@@ -114,27 +127,31 @@ class HingeFind:
     	startsel = self.seed(self.mobCA,self.refCA,radius)
     	mob_start_sel = startsel[0]
     	ref_start_sel = startsel[1]
+        print "Seed: %s"%mob_start_sel.getResnums()
+
     	if mob_start_sel.numAtoms() < 5:
     		return startsel
-
-    	t = pd.calcTransformation(mob_start_sel,ref_start_sel,weights=mob_start_sel.getMasses())
+        t = pd.calcTransformation(mob_start_sel,ref_start_sel,weights=mob_start_sel.getMasses())
         pd.applyTransformation(t,self.mobile)
 
         count = 0
         prev = self.superimpose(eps)
         curr = self.superimpose(eps)
 
-        while prev[0].numAtoms() > curr[0].numAtoms():
+        # while self.arraystr(prev[0].getResnums()) != self.arraystr(curr[0].getResnums()):
+        while self.resStr(prev[0]) != self.resStr(curr[0]):
             prev = curr
             curr = self.superimpose(eps)
+
             count += 1
 
             if count == self.maxcounter:
                 print "convergence - warning: a domain did not converge."
                 break
 
-            if curr[0].numAtoms() < 5:
-                return [None, None]
+            if curr[0].numAtoms() < 5 or not curr[0]:
+                print "Less than 5"
+                return [[None], [None]]
 
         return curr
 
@@ -168,8 +185,8 @@ class HingeFind:
 
     def partition(self,eps):
         # initialize
-        self.mobCA = self.mobFullCA
-        self.refCA = self.refFullCA
+        # self.mobCA = self.mobFullCA
+        # self.refCA = self.refFullCA
         self.sup_rmsd = [999]*self.mobFullCA.numAtoms()
         self.dindex = [-1]*self.mobFullCA.numAtoms()
         self.domain_count = 0
@@ -178,10 +195,15 @@ class HingeFind:
         # partition the protein
         while self.domain_count < self.ndomains:
             domain = self.convergence(eps, seedradius)
+
+            if domain[0]:
+                if domain[0].numAtoms() > 0:
+                    print "Domain: %s Size: %d"%(domain[0].getResnums(),len(domain[0].getResnums()))
+
             mob_domain = domain[0]
             ref_domain = domain[1]
 
-            if mob_domain.numAtoms() == 0:
+            if not mob_domain or mob_domain.numAtoms() == 0:
                 print "partition> trying 20% smaller seed radius..."
                 seedradius *= 0.8
                 continue
@@ -191,9 +213,8 @@ class HingeFind:
             ref_dom_list = ref_domain.getIndices()
             mobCA_list = self.mobCA.getIndices()
             refCA_list = self.refCA.getIndices()
-            mob_disjoint_l = [i for i in mobCA_list if not i in mob_dom_list]
+            mob_disjoint_l = [i for i in mobCA_list if not i in mob_dom_list]            
             ref_disjoint_l = [i for i in refCA_list if not i in ref_dom_list]
-
 
             if len(mob_disjoint_l) > 0:
                 self.mobCA = self.indexSel(self.mobile, mob_disjoint_l)
@@ -230,8 +251,9 @@ class HingeFind:
                 self.refDomList[d].append(ref_ids[i])
                 i += 1
 
-            for d in self.mobDomList.keys():
-                print self.indexSel(self.mobile, self.mobDomList[d]).getResnums()
+            # print self.mobCA.getResnums()
+            # for d in self.mobDomList.keys():
+            #     print self.indexSel(self.mobile, self.mobDomList[d]).getResnums()
 
 
     def hinge (beforeM, afterM, beforeR, afterR, mobile, rotmat): 
