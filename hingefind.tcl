@@ -580,9 +580,9 @@ proc hinge {domid1 domid2} {
     # puts $t
     $all1 move $t
     set com3 [measure center $selid2_1 weight mass]
+    puts $com3
     set rmspro [measure rmsd $selid2_1 $selid2_2 weight mass]
     set t [measure fit $selid1_1 $selid1_2 weight mass]
-    # puts $t
     $all1 move $t
 	
     # output 

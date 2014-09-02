@@ -307,19 +307,74 @@ class HingeFind:
                 self.refDomList[d].append(ref_ids[i])
                 i += 1
 
+    def sortDomList(self,domlist):
+        '''
+        Sort domains by size (number of residues)
+        '''
 
-    def hinge (beforeM, afterM, beforeR, afterR, mobile, rotmat): 
+        i = 0
+        tmplist = {}
+        l = sorted(domlist.items(), key=lambda x: len(x[1]),reverse=True)
+        for e in l:
+            if e[0] != -1:
+                tmplist[i] = e[1]
+                i += 1
+
+        return tmplist
+
+    def sortDomains(self):
+        mob_sorted = self.sortDomList(self.mobDomList)
+        ref_sorted = self.sortDomList(self.refDomList)
+        uncoverged = len(self.mobDomList[-1])
+        converged = 0
+
+        self.mobDomList = mob_sorted
+        self.refDomList = ref_sorted
+        dcount = 0
+
+        for k in sorted(self.mobDomList.keys()):
+            reslist = self.indexSel(self.mobile,self.mobDomList[k]).getResnums()
+            print "sort> domain number %d - number of atoms %d - resids: %s"\
+            %(k,len(reslist),self.arraystr(reslist))
+            converged += len(reslist)
+            dcount += 1
+
+        self.domain_count = dcount
+
+        print "sort> total number of domains larger than %d atoms: %d"%(self.cutdom,self.domain_count)
+        print "sort> total number of residues involved: %d"%converged
+        print "sort> uncoverged rest: %d"%uncoverged
+
+    def calcHinge (self,RefDom=0, MobDom=1): 
         '''
-        hinge from hingefind.tcl recapitulated in python
-        
+        - generate and render the effective rotation axis of the movement 
+          of 'domid2' (moving domain) relative to 'domid1' (reference
+          domain).
+        - called by the user.
+        - (don't confuse reference/mobile domain with reference/mobile structure.)
         '''
-        
-        com1 = calcCenter(beforeM,beforeM.getMasses())
-        # print "COM beforeM: %s"%com1
-        com2 = calcCenter(afterM,afterM.getMasses())
-        # print "COM afterM: %s"%com2
+
+        beforeR = self.indexSel(self.reference, self.refDomList[RefDom])
+        afterR = self.indexSel(self.mobile, self.mobDomList[RefDom])
+        beforeM = self.indexSel(self.reference, self.refDomList[MobDom])
+        afterM = self.indexSel(self.mobile, self.mobDomList[MobDom])
+
+
+        t = pd.calcTransformation(afterR,beforeR,weights=afterR.getMasses())
+        pd.applyTransformation(t,self.mobile)
+        print "hinge> Structures superimposed by domain %d (reference domain)"%RefDom
+
+        com1 = pd.calcCenter(beforeM,beforeM.getMasses())
+        com2 = pd.calcCenter(afterM,afterM.getMasses())
         cdis = np.linalg.norm(com2-com1)
-        print "Distance moved: %f Å"%cdis
+        print "hinge> Distance moved of domain %d: %f Å"%(MobDom,cdis)
+        
+        # calculate the best fit rmsd of the moving domain and reset
+        trans_mat = pd.calcTransformation(afterM,beforeM,weights=afterR.getMasses())
+        rotmat = trans_mat.getMatrix()
+        pd.applyTransformation(trans_mat,self.mobile)
+        rmsid = pd.calcRMSD(afterM,beforeM)
+        pd.applyTransformation(t,self.mobile)
 
         # calculate bisecting point and normalvector of bisecting plane
         bi = (com1 + com2) / 2
@@ -345,69 +400,67 @@ class HingeFind:
         # compute rotation angle (least squares fit)
         cosine = np.dot((new - com2)/np.abs(np.linalg.norm(new - com2)), \
             (new - p1[:3])/np.abs(np.linalg.norm(new - p1[:3])))
-        angl = arccos(cosine)
+        angl = np.arccos(cosine)
         angl_deg = angl * 180 / np.pi
-        print "Rotation: %f°"%angl_deg
+        print "Hinge> \"Overall\" Rotation: %f°"%angl_deg
 
         # compute projection of rot axis on bisecting plane
         perp = np.dot(rideal, pl)
-        angp = np.abs(arcsin(perp))
+        angp = np.abs(np.arcsin(perp))
         pro = (rideal - (pl*perp))/np.abs(np.linalg.norm(rideal - (pl*perp)))
 
         # compute decomposition angle
-        tang = cos(angp) * tan(angl*0.5)
-        angle = 2*arctan(tang)
+        tang = np.cos(angp) * np.tan(angl*0.5)
+        angle = 2*np.arctan(tang)
 
         deg_angle = angle * 180 / np.pi
-        print "Hingefind effective rotation: %f°"%deg_angle
+        print "Hinge> Effective rotation: %f°"%deg_angle
 
         # compute pivot point
         hi = bi + np.cross(pl, pro)*0.5*cdis/tang
 
         # # translate by effective rotation and reset
         # (rotate by $angle around $hi in the plane of $com1,$com2 and $hi?)
-        t = Transformation(tf.rotation_matrix(angle, np.cross((com2 - hi),(com1 - hi)),hi))
-        com3 = calcCenter(beforeM,weights=beforeM.getMasses())
-        applyTransformation(t,mobile)
-        com3 = calcCenter(beforeM,weights=beforeM.getMasses())
-        rmspro = calcRMSD(beforeM,afterM,weights=beforeM.getMasses())
-        t = calcTransformation(afterR,beforeR)
-        applyTransformation(t,mobile)
+        t = pd.Transformation(tf.rotation_matrix(angle, np.cross((com2 - hi),(com1 - hi)),hi))
+        print t.getMatrix()
+        pd.applyTransformation(t,self.mobile)
+        rmspro = pd.calcRMSD(beforeM,afterM,weights=beforeM.getMasses())
+        com3 = pd.calcCenter(beforeM,weights=beforeM.getMasses())
+        print com3
+        t = pd.calcTransformation(afterR,beforeR)
+        pd.applyTransformation(t,self.mobile)
+
+        # output
+        print "hinge> results:"
+        print "hinge> pivot point: %s"%self.arraystr(hi)
+        print "hinge> effective rotation axis: %s (left-handed rotation)"%self.arraystr(pro)
+        print "hinge> effective rotation angle: %f°"%deg_angle
+        print "hinge> accuracy:"
+        print "hinge> rmsd (least squares): %f"%rmsid
+        print "hinge> rmsd (effective rotation): %f"%rmspro
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-r","--reference",type=str,help="Reference structure")
-    parser.add_argument("-m","--mobile",type=str,help="Mobile structure")
-    parser.add_argument("-d1","--domain1",type=str,help="Atom selection for domain 1")
-    parser.add_argument("-d2","--domain2",type=str,help="Atom selection for domain 2")
+    parser.add_argument("-r","--reference",type=str,help="Reference structure",default="1lfh")
+    parser.add_argument("-m","--mobile",type=str,help="Mobile structure",default="1lfg")
+    parser.add_argument("-d1","--domain1",type=str,help="Atom selection for domain 1",\
+        default="resid 5 to 85 87 88 90 91 251 to 293 295 to 302 304 to 332 685 687 to 689 691 and name CA")
+    parser.add_argument("-d2","--domain2",type=str,help="Atom selection for domain 2",\
+        default="resid 92 to 100 104 to 140 143 to 218 220 to 250 and name CA")
+    parser.add_argument("-e","--eps",type=float,help="Tolerance (Å)",default=1.0)
+    parser.add_argument("-c","--cutdom",type=int,help="Minimum number of atoms per domain",default=10)
 
     args = parser.parse_args()
     kwargs = {}
 
-    if not args.reference:
-        args.reference = "1lfh.pdb"
-    
-    if not args.mobile:
-        args.mobile = "1lfg.pdb"
-
-    if not args.domain1:
-        args.domain1 = "resid 5 to 85 87 88 90 91 251 to 293 295 to 302 304 to 332 685 687 to 689 691 and name CA"
-
-    if not args.domain2:
-        args.domain2 = "resid 92 to 100 104 to 140 143 to 218 220 to 250 and name CA"
-
     reference = pd.parsePDB(args.reference)
     mobile = pd.parsePDB(args.mobile)
 
-    hf = HingeFind(mobile,reference)
-    
-    # test criterion
-    # selstr = "resid 92 to 100 104 to 140 143 to 218 220 to 250 and name CA"
-    # moveBy = pd.calcTransformation(mobile.select(selstr),reference.select(selstr))
-    # pd.applyTransformation(moveBy,mobile)
-    # print hf.criterion(mobile.select(selstr),reference.select(selstr),1.0)
+    hf = HingeFind(mobile,reference,cutdom=args.cutdom)    
+    hf.partition(args.eps)
 
-    hf.partition(1.0)
+    hf.sortDomains()
+    hf.calcHinge(1, 2)
 
     # D1str = args.domain1
     # D1_0 = structure1.select(D1str)
