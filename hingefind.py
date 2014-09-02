@@ -1,8 +1,8 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 import numpy as np
-import prody as pd
-import transformations as tf
+import prody as pd              #  https://github.com/prody/ProDy.git
+import transformations as tf    #  https://github.com/malcolmreynolds/transformations.git
 import os 
 import sys
 import argparse
@@ -10,7 +10,6 @@ import argparse
 class HingeFind:
     """docstring for HingeFind"""
     def __init__(self, mobile,reference,initrad=20,maxcounter=20,ndomains=999,cutdom=10):
-        # super(HingeFind, self).__init__()
         self.mobile = mobile
         self.reference = reference
         self.initrad = initrad
@@ -40,39 +39,59 @@ class HingeFind:
         except:
             print "init> cutdom needs to be larger than 4!"
 
+
     def lsubstract(self,list1,list2):
+        '''
+        Return disjoint list of elements in list1 but not in list2
+
+        '''
         return [l for l in list1 if l not in list2]
 
+
     def arraystr(self,a):
+        '''
+        Return list as space delimited string
+        '''
         return " ".join([str(x) for x in a])
 
+
     def indexSel(self,structure,indices):        
+        '''
+        Return atom selection correpsoding to index list
+        '''
         if len(indices) > 0:
             return structure.select("index "+self.arraystr(indices))
         else :
             return None
 
-    def resStr(self,structure):                
+
+    def resStr(self,structure):                   
+        '''
+        Return space delimited string of residue numbers in input structure
+
+        '''         
         if structure:
             return self.arraystr(structure.getResnums())
         else :
             return None
+
     
     def criterion (self,mob_sel,ref_sel,eps):
-    # def criterion (self,mobile,reference,eps):
+        '''
+        - find those atoms which have rmsd < eps in the two selections
+        - return the info as a list of prody Cα atom selections 
+        - called by procedure 'superimpose'.
+        '''
+
         mob_coord = mob_sel.getCoords()
         ref_coord = ref_sel.getCoords()
-
         mob_ids =mob_sel.getIndices()
         ref_ids =ref_sel.getIndices()
-
         mob_list = []
         ref_list = []
 
         i = 0
-
         while i < len(mob_coord):
-        # for (c1,c2) in [(c1,c2) for c1 in mob_coord for c2 in ref_coord]:            
             if pd.calcDistance(mob_coord[i],ref_coord[i]) < eps:
                 mob_list.append(mob_ids[i])
                 ref_list.append(ref_ids[i])
@@ -82,13 +101,22 @@ class HingeFind:
         ref_surv = self.indexSel(ref_sel,ref_list)
 
         return [mob_surv,ref_surv]
-        # return [mob_list,ref_list]
+
 
     def superimpose(self,eps):
+        '''
+        - superposition based on the atoms which match the best.
+        - return the best matching subsets as a list of prody Cα atom selections.
+        - called by procedure 'convergence'.
+        '''
+
+        # get atoms that are within 'eps'
     	survivor = self.criterion(self.mobCA,self.refCA,eps)
     	mob_subset = survivor[0]
     	ref_subset = survivor[1]
-    	if mob_subset:
+
+        # and fit by the best matching set
+        if mob_subset:
             if mob_subset.numAtoms() < 5:
     		  return survivor
 
@@ -100,6 +128,13 @@ class HingeFind:
     	return survivor    	
 
     def seed(self,mob_sel,ref_sel,radius):
+        '''
+        - find a seed subset (all atoms of 'mob_sel' within 'radius' of the
+          first atom in 'mob_sel').
+        - return the info as a list of prody Cα atom selections.
+        - called by procedure 'convergence'.
+        '''
+
     	mobcoord = mob_sel.getCoords()
     	mob_ids = mob_sel.getIndices()
     	ref_ids = ref_sel.getIndices()
@@ -123,22 +158,30 @@ class HingeFind:
         ref_subset = self.indexSel(self.reference, ref_list)
     	return [mob_subset,ref_subset]
 
+
     def convergence(self,eps,radius):
+        '''
+          - iterate until a domain is found.
+          - return domain as a list of prody Cα atom selections.
+          - called by procedure 'partition'.
+        '''
+
+        # initiate search in seed-subset
     	startsel = self.seed(self.mobCA,self.refCA,radius)
     	mob_start_sel = startsel[0]
     	ref_start_sel = startsel[1]
-        print "Seed: %s"%mob_start_sel.getResnums()
-
     	if mob_start_sel.numAtoms() < 5:
     		return startsel
+            # nothing to find from seed set, return formally as a domain
+
+        # if seed-subset sufficiently large, proceed with initial fit
         t = pd.calcTransformation(mob_start_sel,ref_start_sel,weights=mob_start_sel.getMasses())
         pd.applyTransformation(t,self.mobile)
 
+        # search iteratively for the domain until residue list converges
         count = 0
         prev = self.superimpose(eps)
         curr = self.superimpose(eps)
-
-        # while self.arraystr(prev[0].getResnums()) != self.arraystr(curr[0].getResnums()):
         while self.resStr(prev[0]) != self.resStr(curr[0]):
             prev = curr
             curr = self.superimpose(eps)
@@ -146,15 +189,26 @@ class HingeFind:
             count += 1
 
             if count == self.maxcounter:
-                print "convergence - warning: a domain did not converge."
+                print "convergence - warning: a domain did not converge."                
                 break
 
-        if curr[0].numAtoms() < 5 or not curr[0]:
+        if not curr[0] or curr[0].numAtoms() < 5:
             return [None, None]
+            # even though seed set was sufficiently large, 
+            # the found domain is too small. return nothing and 
+            # let 'partition' try again with smaller radius
 
         return curr
 
+
     def update_boundaries(self,eps,number):
+        '''
+        - update the 'sup_rmsd' and 'dindex' lists with the 'number' domain.
+        - actually "save" the domain and update it's boundaries with earlier
+          found domains.
+        - called by procedure 'partition'.
+        '''
+
         mob_coord = self.mobFullCA.getCoords()
         ref_coord = self.refFullCA.getCoords()
 
@@ -162,7 +216,6 @@ class HingeFind:
         newindex = []
 
         i = 0
-
         while i < len(mob_coord):
             mcrd = mob_coord[i]
             rcrd = ref_coord[i]
@@ -176,13 +229,17 @@ class HingeFind:
             else:
                 newsup_rmsd.append(self.sup_rmsd[i])
                 newindex.append(self.dindex[i])
-
             i += 1
 
         self.sup_rmsd = newsup_rmsd
         self.dindex = newindex
 
     def partition(self,eps):
+        '''
+        - the main partitioning procedure, generates the domains.
+        - stores the domains of molecules 1 and 2 in 'domindex' arrays. 
+        '''
+
         # initialize
         # self.mobCA = self.mobFullCA
         # self.refCA = self.refFullCA
@@ -194,10 +251,6 @@ class HingeFind:
         # partition the protein
         while self.domain_count < self.ndomains:
             domain = self.convergence(eps, seedradius)
-
-            if domain[0]:
-                if domain[0].numAtoms() > 0:
-                    print "Domain: %s Size: %d"%(domain[0].getResnums(),len(domain[0].getResnums()))
 
             mob_domain = domain[0]
             ref_domain = domain[1]
@@ -215,11 +268,14 @@ class HingeFind:
             mob_disjoint_l = [i for i in mobCA_list if not i in mob_dom_list]            
             ref_disjoint_l = [i for i in refCA_list if not i in ref_dom_list]
 
+            # and reset the definitions of ca1 and ca2
             if len(mob_disjoint_l) > 0:
                 self.mobCA = self.indexSel(self.mobile, mob_disjoint_l)
                 self.refCA = self.indexSel(self.reference, ref_disjoint_l)
 
             if mob_domain.numAtoms() > 4:
+                # convergence found a domain after normal iteration
+                # reset seed radius and update domain boundaries
                 seedradius = self.initrad
                 self.update_boundaries(eps, self.domain_count)
 
@@ -234,6 +290,7 @@ class HingeFind:
                 print "partittion> protein now fully partitioned"
                 break
 
+            # store the unsorted domains in the 'domindex' arrays
             self.mobDomList = {}
             self.refDomList = {}
             currentDomains = set(self.dindex)        
@@ -249,10 +306,6 @@ class HingeFind:
                 self.mobDomList[d].append(mob_ids[i])
                 self.refDomList[d].append(ref_ids[i])
                 i += 1
-
-            # print self.mobCA.getResnums()
-            # for d in self.mobDomList.keys():
-            #     print self.indexSel(self.mobile, self.mobDomList[d]).getResnums()
 
 
     def hinge (beforeM, afterM, beforeR, afterR, mobile, rotmat): 
