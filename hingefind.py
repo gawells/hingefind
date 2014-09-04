@@ -161,8 +161,8 @@ class HingeFind:
 
     def convergence(self,eps,radius):
         '''
-          - iterate until a domain is found.
-          - return domain as a list of prody Cα atom selections.
+          - iterate until a domain is found
+.          - return domain as a list of prody Cα atom selections.
           - called by procedure 'partition'.
         '''
 
@@ -353,6 +353,7 @@ class HingeFind:
         - called by the user.
         - (don't confuse reference/mobile domain with reference/mobile structure.)
         '''
+        print self.mobile.getCoords()[0]
 
         beforeR = self.indexSel(self.reference, self.refDomList[RefDom])
         afterR = self.indexSel(self.mobile, self.mobDomList[RefDom])
@@ -374,6 +375,7 @@ class HingeFind:
         rotmat = trans_mat.getMatrix()
         pd.applyTransformation(trans_mat,self.mobile)
         rmsid = pd.calcRMSD(afterM,beforeM)
+        t = pd.calcTransformation(afterR,beforeR)
         pd.applyTransformation(t,self.mobile)
 
         # calculate bisecting point and normalvector of bisecting plane
@@ -414,7 +416,7 @@ class HingeFind:
         angle = 2*np.arctan(tang)
 
         deg_angle = angle * 180 / np.pi
-        print "Hinge> Effective rotation: %f°"%deg_angle
+        # print "Hinge> Effective rotation: %f°"%deg_angle
 
         # compute pivot point
         hi = bi + np.cross(pl, pro)*0.5*cdis/tang
@@ -424,11 +426,14 @@ class HingeFind:
         t = pd.Transformation(tf.rotation_matrix(angle, np.cross((com2 - hi),(com1 - hi)),hi))
         print t.getMatrix()
         pd.applyTransformation(t,self.mobile)
-        rmspro = pd.calcRMSD(beforeM,afterM,weights=beforeM.getMasses())
-        com3 = pd.calcCenter(beforeM,weights=beforeM.getMasses())
-        print com3
-        t = pd.calcTransformation(afterR,beforeR)
-        pd.applyTransformation(t,self.mobile)
+        # pd.writePDB("tmp.pdb",self.mobile)
+        rmspro = pd.calcRMSD(afterM,beforeM,weights=beforeM.getMasses()) ##not the same as .tcl script??
+        relerr = 100 *(rmspro - rmsid)/cdis
+        deg_angp = angp*180/np.pi
+        # com3 = pd.calcCenter(beforeM,weights=beforeM.getMasses())
+        # print com3
+        # t = pd.calcTransformation(afterR,beforeR)
+        # pd.applyTransformation(t,self.mobile)
 
         # output
         print "hinge> results:"
@@ -438,6 +443,8 @@ class HingeFind:
         print "hinge> accuracy:"
         print "hinge> rmsd (least squares): %f"%rmsid
         print "hinge> rmsd (effective rotation): %f"%rmspro
+        print "hinge> relative error: %f %%"%relerr
+        print "hinge> projection (deviation) angle: %f °"%deg_angp
 
 def main():
     parser = argparse.ArgumentParser()

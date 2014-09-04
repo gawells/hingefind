@@ -55,12 +55,12 @@ proc load {} {
     set cutdom 10
 
     # load the first pdb file from pdb databank (pdb entry 1lfg)
-    mol pdbload 1lfg
+    mol new 1lfg.pdb
     # (or read a file with "mol load pdb foo.pdb"!)
     set mol1 [molinfo top]
 
     # load the second pdb file from pdb databank (pdb entry 1lfh)
-    mol pdbload 1lfh
+    mol new 1lfh.pdb
     # (or read a file with "mol load pdb bar.pdb"!)
     set mol2 [molinfo top]
 
@@ -323,7 +323,7 @@ proc sort_n_render {} {
 
     # render sorted domains by color-coded residues
     set t [measure fit $full1 $full2 weight mass]
-    $all1 move $t
+    # $all1 move $t
     display update
     set ntot 0
     set nrtot 0
@@ -496,7 +496,7 @@ proc hinge {domid1 domid2} {
     global all1 mol1 mol2
     global full1 full2 
     global domain_count domindex1 domindex2
-    global hinge_ref_id
+    global hinge_ref_id    
 
     # set radius of drawn effect. rot. axis
     set raxis 0.5 
@@ -578,9 +578,10 @@ proc hinge {domid1 domid2} {
     # translate by effective rotation and reset
     set t [trans angle $com2 $hi $com1 $angle rad] 
     # puts $t
+    puts [lindex [$all1 get {x y z}] 0]
     $all1 move $t
-    set com3 [measure center $selid2_1 weight mass]
-    puts $com3
+    # set com3 [measure center $selid2_1 weight mass]
+    # puts $com3
     set rmspro [measure rmsd $selid2_1 $selid2_2 weight mass]
     set t [measure fit $selid1_1 $selid1_2 weight mass]
     $all1 move $t
