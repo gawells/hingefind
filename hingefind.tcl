@@ -620,6 +620,7 @@ proc rot {} {
     # load 
     partition 1
     hinge 1 2
+    hinge 2 1
 }
 
 load

@@ -3,9 +3,10 @@
 import numpy as np
 import prody as pd              #  https://github.com/prody/ProDy.git
 import transformations as tf    #  https://github.com/malcolmreynolds/transformations.git
-import os 
-import sys
+# import os 
+# import sys
 import argparse
+import re
 
 class HingeFind:
     """docstring for HingeFind"""
@@ -353,7 +354,6 @@ class HingeFind:
         - called by the user.
         - (don't confuse reference/mobile domain with reference/mobile structure.)
         '''
-        print self.mobile.getCoords()[0]
 
         beforeR = self.indexSel(self.reference, self.refDomList[RefDom])
         afterR = self.indexSel(self.mobile, self.mobDomList[RefDom])
@@ -424,16 +424,10 @@ class HingeFind:
         # # translate by effective rotation and reset
         # (rotate by $angle around $hi in the plane of $com1,$com2 and $hi?)
         t = pd.Transformation(tf.rotation_matrix(angle, np.cross((com2 - hi),(com1 - hi)),hi))
-        print t.getMatrix()
         pd.applyTransformation(t,self.mobile)
-        # pd.writePDB("tmp.pdb",self.mobile)
         rmspro = pd.calcRMSD(afterM,beforeM,weights=beforeM.getMasses()) ##not the same as .tcl script??
         relerr = 100 *(rmspro - rmsid)/cdis
         deg_angp = angp*180/np.pi
-        # com3 = pd.calcCenter(beforeM,weights=beforeM.getMasses())
-        # print com3
-        # t = pd.calcTransformation(afterR,beforeR)
-        # pd.applyTransformation(t,self.mobile)
 
         # output
         print "hinge> results:"
@@ -448,14 +442,14 @@ class HingeFind:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-r","--reference",type=str,help="Reference structure",default="1lfh")
-    parser.add_argument("-m","--mobile",type=str,help="Mobile structure",default="1lfg")
-    parser.add_argument("-d1","--domain1",type=str,help="Atom selection for domain 1",\
+    parser.add_argument("-r","--reference",type=str,help="Reference structure (default = 1lfh)",default="1lfh")
+    parser.add_argument("-m","--mobile",type=str,help="Mobile structure (default = 1lfg)",default="1lfg")
+    parser.add_argument("-d1","--domain1",type=str,help="Atom selection for domain 1 (default = domain 1 for 1lfg/h)",\
         default="resid 5 to 85 87 88 90 91 251 to 293 295 to 302 304 to 332 685 687 to 689 691 and name CA")
-    parser.add_argument("-d2","--domain2",type=str,help="Atom selection for domain 2",\
+    parser.add_argument("-d2","--domain2",type=str,help="Atom selection for domain 2 (default = domain 2 for 1lfg/h)",\
         default="resid 92 to 100 104 to 140 143 to 218 220 to 250 and name CA")
-    parser.add_argument("-e","--eps",type=float,help="Tolerance (Å)",default=1.0)
-    parser.add_argument("-c","--cutdom",type=int,help="Minimum number of atoms per domain",default=10)
+    parser.add_argument("-e","--eps",type=float,help="Tolerance (default = 1.0 Å)",default=1.0)
+    parser.add_argument("-c","--cutdom",type=int,help="Minimum number of atoms per domain (default = 10)",default=10)
 
     args = parser.parse_args()
     kwargs = {}
@@ -464,41 +458,23 @@ def main():
     mobile = pd.parsePDB(args.mobile)
 
     hf = HingeFind(mobile,reference,cutdom=args.cutdom)    
-    hf.partition(args.eps)
+    if re.search("^\d+$", args.domain1) and re.search("^\d+$", args.domain2) :
+        hf.partition(args.eps)
+        hf.sortDomains()
+        print args.domain2
+        hf.calcHinge(int(args.domain1), int(args.domain2))
+    else: # if using a vmd atomselection
+        mobDom1 = hf.mobile.select(args.domain1).getIndices()
+        mobDom2 = hf.mobile.select(args.domain2).getIndices()
+        refDom1 = hf.reference.select(args.domain1).getIndices()
+        refDom2 = hf.reference.select(args.domain2).getIndices()
 
-    hf.sortDomains()
-    hf.calcHinge(1, 2)
-
-    # D1str = args.domain1
-    # D1_0 = structure1.select(D1str)
-    # D1_now = structure2.select(D1str)
+        hf.mobDomList[0] = mobDom1
+        hf.mobDomList[1] = mobDom2
+        hf.refDomList[0] = refDom1
+        hf.refDomList[1] = refDom2
     
-    # t = calcTransformation(D1_now,D1_0,weights=D1_now.getMasses())
-    # applyTransformation(t,structure2)   
-    # writePDB('sup1.pdb',structure2)
-
-    # D2str = args.domain2
-    # D2_0 = structure1.select(D2str)    
-    # D2_now = structure2.select(D2str)
-    # t = calcTransformation(D2_now,D2_0,weights=D2_now.getMasses())
-    
-    # # from hingefind
-    # print "**Hingefind**"
-    # hinge(D2_0, D2_now,D1_0,D1_now,structure2,t.getMatrix())
-    
-    # print "**Prody**"
-    # # print t.getMatrix()
-    # q = tf.quaternion_from_matrix(t.getMatrix()) ##
-    # # print t.getRotation()
-    # print "Quaternion from matrix: %s"%q
-    # rotation = (2*arccos(q[0]))/np.pi*180
-    # print  "Rotation from quaternion: %f°"%rotation
-    
-    # applyTransformation(t,structure2)   
-    # writePDB('sup2.pdb',structure2)
-
-    # From hingefind : D0 D1 = 18.83°
-    # From hingefind : D1 D0 = 19.80°
+        hf.calcHinge(0,1)
 
 if __name__ == '__main__':
     main()
