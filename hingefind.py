@@ -8,9 +8,12 @@ import re
 
 class HingeFind:
     """docstring for HingeFind"""
-    def __init__(self, mobile,reference,initrad=20,maxcounter=20,ndomains=999,cutdom=10,trajectory=None,structure=None):
-        self.mobile = mobile
-        self.reference = reference
+    def __init__(self, mobile,reference,initrad=20,maxcounter=20,ndomains=999,cutdom=10,\
+        trajectory=None,structure=None,output="hingefind_domains"):
+        self.mobFileName = mobile
+        self.mobile = pd.parsePDB(mobile)
+        self.refFileName = reference
+        self.reference = pd.parsePDB(reference)
         self.initrad = initrad
         self.maxcounter = maxcounter
         self.ndomains = ndomains
@@ -30,6 +33,8 @@ class HingeFind:
 
         self.trajectory = trajectory
         self.structure = structure
+        self.output = output
+
         # if structure and trajectory:
         #     self.structure = pd.parsePDB(structure)
         #     self.trajectory = pd.Trajectory(trajectory)
@@ -247,8 +252,6 @@ class HingeFind:
         '''
 
         # initialize
-        # self.mobCA = self.mobFullCA
-        # self.refCA = self.refFullCA
         self.sup_rmsd = [999]*self.mobFullCA.numAtoms()
         self.dindex = [-1]*self.mobFullCA.numAtoms()
         self.domain_count = 0
@@ -350,6 +353,8 @@ class HingeFind:
         print "sort> total number of domains larger than %d atoms: %d"%(self.cutdom,self.domain_count)
         print "sort> total number of residues involved: %d"%converged
         print "sort> uncoverged rest: %d"%uncoverged
+
+        self.vmd_render()
 
     def calcHinge (self,RefDom=0, MobDom=1): 
         '''
@@ -488,8 +493,45 @@ class HingeFind:
             overall.append([i,results[3]])
             effective_rot.append([i,results[6]])
 
-        np.savetxt("overall_angles.dat",overall,delimiter=' ' )
-        np.savetxt("effective_rotation_angles.dat",effective_rot,delimiter=' ' )
+        np.savetxt(self.output+".overall_rotation.dat",overall,delimiter=' ' )
+        np.savetxt(self.output+".effective_rotation.dat",effective_rot,delimiter=' ' )
+
+    def vmd_render(self):
+        '''
+        Write .vmd script
+        '''
+
+        vmdfile = open(self.output+".vmd",'w')
+        vmdfile.write(
+'''
+proc newrep {{mol top} {selection "all"} {style "newcartoon"} {color "chain"} {mat "AOChalky"}} {
+    mol addrep $mol
+    set lastrep [expr [molinfo $mol get numreps]-1]
+    mol modselect $lastrep $mol $selection
+    mol modstyle $lastrep $mol $style
+    mol modcolor $lastrep $mol $color
+    mol modmaterial $lastrep $mol $mat
+    mol selupdate [lastrep] top on
+}
+'''
+            )
+
+        vmdfile.write("mol new %s\n"%self.refFileName)
+        vmdfile.write("mol new %s\n"%self.mobFileName)
+
+        colour = 0
+        for d in sorted(self.mobDomList.keys()):
+            indexstrM = self.arraystr(self.mobDomList[d])
+            indexstrR = self.arraystr(self.refDomList[d])
+            vmdfile.write(
+'''
+newrep 0 "same residue as index %s" newcartoon "ColorID %d"
+newrep 1 "same residue as index %s" newcartoon "ColorID %d"
+'''%(indexstrR,colour,indexstrM,colour)
+                )
+            colour += 1
+        
+        vmdfile.close()
 
 
 def main():
@@ -505,20 +547,17 @@ def main():
     parser.add_argument("-s","--structure",type=str,help="Reference structure for trajectory",default=None)
     parser.add_argument("-e","--eps",type=float,help="Tolerance (default = 1.0 Å)",default=1.0)
     parser.add_argument("-c","--cutdom",type=int,help="Minimum number of atoms per domain (default = 10)",default=10)
+    parser.add_argument("-o","--ouptut",type=str,help="Output file",default="hingefind_domains")
 
     args = parser.parse_args()
     kwargs = {}
 
-    reference = pd.parsePDB(args.reference)
-    mobile = pd.parsePDB(args.mobile)
-
-    hf = HingeFind(mobile,reference,cutdom=args.cutdom,trajectory=args.trajectory,structure=args.structure)    
+    hf = HingeFind(args.mobile,args.reference,cutdom=args.cutdom,trajectory=args.trajectory,structure=args.structure)    
 
     if re.search("^\d+$", args.domain1) and re.search("^\d+$", args.domain2) :
         hf.partition(args.eps)
         hf.sortDomains()
         results = hf.calcHinge(int(args.domain1), int(args.domain2))
-        print len(results)
         hf.hingeOutput(results[0],results[1],results[2],results[3],results[4],\
             results[5],results[6],results[7],results[8],results[9],results[10])
 
@@ -534,9 +573,16 @@ def main():
         hf.mobDomList[1] = mobDom2
         hf.refDomList[0] = refDom1
         hf.refDomList[1] = refDom2
-    
-        hf.calcHinge(0,1)
 
+        results = hf.calcHinge(0, 1)
+        hf.hingeOutput(results[0],results[1],results[2],results[3],results[4],\
+            results[5],results[6],results[7],results[8],results[9],results[10])
+
+        hf.vmd_render()
+
+        if args.structure and args.trajectory:
+            hf.hingeTraj(0, 1)
+        
 
 if __name__ == '__main__':
     main()
