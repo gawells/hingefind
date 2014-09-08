@@ -572,7 +572,7 @@ def main():
             results[5],results[6],results[7],results[8],results[9],results[10])
 
         if args.structure and args.trajectory:
-            hf.hingeTraj(args.domain1, args.domain2)
+            hf.hingeTraj(int(args.domain1), int(args.domain2))
     
     else: # if using predetermined vmd atom selections
         mobDom1 = hf.mobile.select(args.domain1).getIndices()
