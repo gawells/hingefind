@@ -354,7 +354,7 @@ class HingeFind:
         print "sort> total number of residues involved: %d"%converged
         print "sort> uncoverged rest: %d"%uncoverged
 
-        self.vmd_render()
+        # self.vmd_render()
 
     def calcHinge (self,RefDom=0, MobDom=1): 
         '''
@@ -369,7 +369,6 @@ class HingeFind:
         afterR = self.indexSel(self.mobile, self.mobDomList[RefDom])
         beforeM = self.indexSel(self.reference, self.refDomList[MobDom])
         afterM = self.indexSel(self.mobile, self.mobDomList[MobDom])
-
 
         t = pd.calcTransformation(afterR,beforeR,weights=afterR.getMasses())
         pd.applyTransformation(t,self.mobile)
@@ -496,7 +495,7 @@ class HingeFind:
         np.savetxt(self.output+".overall_rotation.dat",overall,delimiter=' ' )
         np.savetxt(self.output+".effective_rotation.dat",effective_rot,delimiter=' ' )
 
-    def vmd_render(self):
+    def vmd_render(self,ref_domain=None):
         '''
         Write .vmd script
         '''
@@ -526,10 +525,20 @@ proc newrep {{mol top} {selection "all"} {style "newcartoon"} {color "chain"} {m
             vmdfile.write(
 '''
 newrep 0 "same residue as index %s" newcartoon "ColorID %d"
+set ref_dom_%d [atomselect 0 "index %s"]
 newrep 1 "same residue as index %s" newcartoon "ColorID %d"
-'''%(indexstrR,colour,indexstrM,colour)
+set mob_dom_%d [atomselect 1 "index %s"]
+'''%(indexstrR,colour,colour,indexstrR,\
+    indexstrM,colour,colour,indexstrM)
                 )
             colour += 1
+
+        if ref_domain:
+            vmdfile.write('''
+set fit [measure fit $mob_dom_%d $ref_dom_%d]
+[atomselect 1 "all"] move $fit
+
+'''%(int(ref_domain),int(ref_domain)))
         
         vmdfile.close()
 
@@ -557,6 +566,7 @@ def main():
     if re.search("^\d+$", args.domain1) and re.search("^\d+$", args.domain2) :
         hf.partition(args.eps)
         hf.sortDomains()
+        hf.vmd_render(args.domain1)
         results = hf.calcHinge(int(args.domain1), int(args.domain2))
         hf.hingeOutput(results[0],results[1],results[2],results[3],results[4],\
             results[5],results[6],results[7],results[8],results[9],results[10])
