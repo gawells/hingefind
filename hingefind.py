@@ -435,18 +435,8 @@ class HingeFind:
         relerr = 100 *(rmspro - rmsid)/cdis
         deg_angp = angp*180/np.pi
 
-        # output
-        # print "hinge> results:"
-        # print "hinge> pivot point: %s"%self.arraystr(hi)
-        # print "hinge> effective rotation axis: %s (left-handed rotation)"%self.arraystr(pro)
-        # print "hinge> effective rotation angle: %f°"%deg_angle
-        # print "hinge> accuracy:"
-        # print "hinge> rmsd (least squares): %f"%rmsid
-        # print "hinge> rmsd (effective rotation): %f"%rmspro
-        # print "hinge> relative error: %f %%"%relerr
-        # print "hinge> projection (deviation) angle: %f°"%deg_angp
-
-        return [RefDom,MobDom,cdis,angl_deg_o,hi,pro,deg_angle,rmsid,rmspro,relerr,deg_angp]
+        return [RefDom,MobDom,cdis,angl_deg_o,hi,pro,deg_angle,rmsid,rmspro,relerr,deg_angp,com1,com2]
+        #       0      1      2    3          4  5   6         7     8      9      10       11   12
 
     def hingeOutput(self,refdom,mobdom,cdis,angl_deg_o,pivot,axis,eff_rot,rmsid,rmspro,relerr,proj):
         print "hinge> results:"
@@ -495,7 +485,7 @@ class HingeFind:
         np.savetxt(self.output+".overall_rotation.dat",overall,delimiter=' ' )
         np.savetxt(self.output+".effective_rotation.dat",effective_rot,delimiter=' ' )
 
-    def vmd_render(self,ref_domain=None):
+    def vmd_render(self,ref_domain,mob_domain,pivot,pro,com1,com2):
         '''
         Write .vmd script
         '''
@@ -512,11 +502,15 @@ proc newrep {{mol top} {selection "all"} {style "newcartoon"} {color "chain"} {m
     mol modmaterial $lastrep $mol $mat
     mol selupdate [lastrep] top on
 }
-'''
+
+mol new %s 
+mol new %s
+
+newrep 0 "protein" newcartoon element
+newrep 1 "protein" newcartoon element BrushedMetal
+'''%(self.refFileName,self.mobFileName)
             )
 
-        vmdfile.write("mol new %s\n"%self.refFileName)
-        vmdfile.write("mol new %s\n"%self.mobFileName)
 
         colour = 0
         for d in sorted(self.mobDomList.keys()):
@@ -526,19 +520,49 @@ proc newrep {{mol top} {selection "all"} {style "newcartoon"} {color "chain"} {m
 '''
 newrep 0 "same residue as index %s" newcartoon "ColorID %d"
 set ref_dom_%d [atomselect 0 "index %s"]
-newrep 1 "same residue as index %s" newcartoon "ColorID %d"
+newrep 1 "same residue as index %s" newcartoon "ColorID %d" BrushedMetal
 set mob_dom_%d [atomselect 1 "index %s"]
 '''%(indexstrR,colour,colour,indexstrR,\
     indexstrM,colour,colour,indexstrM)
                 )
             colour += 1
 
-        if ref_domain:
+        if type(ref_domain) is int:
             vmdfile.write('''
 set fit [measure fit $mob_dom_%d $ref_dom_%d]
 [atomselect 1 "all"] move $fit
 
-'''%(int(ref_domain),int(ref_domain)))
+'''%(ref_domain,ref_domain))
+
+        com1 = self.arraystr(com1)
+        com2 = self.arraystr(com2)
+        pivot = self.arraystr(pivot)
+        pro = self.arraystr(pro)
+
+        vmdfile.write(
+'''
+set laxis 80 
+set raxis 0.5
+
+set ax1 [vecadd {%s} [vecscale {%s} [expr 0.50 * $laxis]]]
+set ax2 [vecsub {%s} [vecscale {%s} [expr 0.42 * $laxis]]]
+set ax3 [vecsub {%s} [vecscale {%s} [expr 0.50 * $laxis]]]
+draw color [expr %d %% 17]
+draw cylinder $ax1 $ax2 radius $raxis
+draw cone $ax2 $ax3 radius [expr 2.5 * $raxis]
+draw sphere $ax1 radius $raxis
+draw cylinder {%s} {%s} radius $raxis
+draw sphere {%s} radius $raxis
+draw cylinder {%s} {%s} radius $raxis
+draw sphere {%s} radius $raxis
+'''%(pivot,pro,\
+    pivot,pro,\
+    pivot,pro,\
+    mob_domain,\
+    com1,pivot,\
+    com1,\
+    com2,pivot,\
+    com2))
         
         vmdfile.close()
 
@@ -566,8 +590,8 @@ def main():
     if re.search("^\d+$", args.domain1) and re.search("^\d+$", args.domain2) :
         hf.partition(args.eps)
         hf.sortDomains()
-        hf.vmd_render(args.domain1)
         results = hf.calcHinge(int(args.domain1), int(args.domain2))
+        hf.vmd_render(int(args.domain1),int(args.domain2),results[4],results[5],results[11],results[12])
         hf.hingeOutput(results[0],results[1],results[2],results[3],results[4],\
             results[5],results[6],results[7],results[8],results[9],results[10])
 
@@ -586,10 +610,11 @@ def main():
         hf.refDomList[1] = refDom2
 
         results = hf.calcHinge(0, 1)
+
         hf.hingeOutput(results[0],results[1],results[2],results[3],results[4],\
             results[5],results[6],results[7],results[8],results[9],results[10])
 
-        hf.vmd_render()
+        hf.vmd_render(0,1,results[4],results[5],results[11],results[12])
 
         if args.structure and args.trajectory:
             hf.hingeTraj(0, 1)
