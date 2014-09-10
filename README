@@ -1,0 +1,39 @@
+A recapitulation of Willy Wriggers' and Klaus Schulten's Hingefind algorithm in 
+python. This script also makes use of the prody API and Christoph Gohlke's 
+transpformations.py . Mostly because I want to be able to run the hinge 
+calculation over a trajectory outside of VMD. The script can take domain numbers
+as arguments (as in the original hinge tcl function) or if VMD atom selections 
+if you don't want to run the domain finding component.
+
+USAGE
+- Running with no arguments calculates the hinge-bending angle between domains
+  1 and 2 of 1lfg/h (with domain 2 as mobile) as used in the original script.
+
+- To determine the hinge-bending angle between domains 0 and 1 of 1lfg/h:
+	(-d2 is mobile)
+	> hingefind.py  -d1 0 -d2 1 -e 1 -m 1lfg.pdb -r 1lfh.pdb 
+
+- To determine the hinge-bending angle between domains using atom selections:
+	> hingefind.py  -d1 "resid 5 to 85 87 88 90 91 251 to 293 295 to 302 304 to\
+	 332 685 687 to 689 691 and name CA" -d2 "resid 92 to 100 104 to 140 143 to\
+	 218 220 to 250 and name CA" -e 1 -m 1lfg.pdb -r 1lfh.pdb
+
+- How to calculate the hinge-bending angle over a trajectory:
+	> hingefind.py -s ionized.pdb  -d1 0 -d2 1 -e 1 -m open.pdb -r closed.pdb \
+	 -s ionized.pdb -t trajectory.dcd
+
+	- Note: Inputs for -m and -r are used for the domain-finding. The results 
+	  are then applied to the inputs for -s and -t
+
+REFERENCES/APIs
+- Hingefind original:
+	http://biomachina.org/disseminate/hingefind/hingefind.html
+	doi: 10.1002/(SICI)1097-0134(199709)29:1<1::AID-PROT1>3.0.CO;2-J,
+
+- ProDy:
+	http://prody.csb.pitt.edu/
+	doi: 10.1093/bioinformatics/btr168
+
+- transoformations.py:
+	http://www.lfd.uci.edu/~gohlke/code/transformations.py.html
+	https://github.com/malcolmreynolds/transformations.git
