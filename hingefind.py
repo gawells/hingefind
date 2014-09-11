@@ -354,7 +354,6 @@ class HingeFind:
         print "sort> total number of residues involved: %d"%converged
         print "sort> uncoverged rest: %d"%uncoverged
 
-        # self.vmd_render()
 
     def calcHinge (self,RefDom=0, MobDom=1): 
         '''
@@ -395,7 +394,7 @@ class HingeFind:
 
         # rotate com1 twice about com2
         # (arbitrary choice of rotation to generate new points to make a plane,
-        # rotation axis is perpindicular to this?)
+        # rotation axis is perpendicular to this?)
         p1 = np.dot(rot2,np.append(com2,1))
         p2 = np.dot(rot2,p1)
 
@@ -407,12 +406,10 @@ class HingeFind:
         new = com1 - (rideal * np.dot(rideal,(com1 - com2)))
 
         # compute rotation angle (least squares fit)
-        cosine = np.dot((new - com2)/np.abs(np.linalg.norm(new - com2)), \
-            (new - p1[:3])/np.abs(np.linalg.norm(new - p1[:3])))
-        angl = np.arccos(cosine)
+        ## print 2*np.arccos(tf.quaternion_from_matrix(rotmat)[0])/np.pi*180 
+        angl = tf.rotation_from_matrix(rotmat)[0]
         angl_deg_o = angl * 180 / np.pi
         
-
         # compute projection of rot axis on bisecting plane
         perp = np.dot(rideal, pl)
         angp = np.abs(np.arcsin(perp))
@@ -421,7 +418,6 @@ class HingeFind:
         # compute decomposition angle
         tang = np.cos(angp) * np.tan(angl*0.5)
         angle = 2*np.arctan(tang)
-
         deg_angle = angle * 180 / np.pi
 
         # compute pivot point
@@ -431,7 +427,7 @@ class HingeFind:
         # (rotate by $angle around $hi in the plane of $com1,$com2 and $hi?)
         t = pd.Transformation(tf.rotation_matrix(angle, np.cross((com2 - hi),(com1 - hi)),hi))
         pd.applyTransformation(t,self.mobile)
-        rmspro = pd.calcRMSD(afterM,beforeM,weights=beforeM.getMasses()) ##not the same as .tcl script??
+        rmspro = pd.calcRMSD(afterM,beforeM,weights=beforeM.getMasses()) 
         relerr = 100 *(rmspro - rmsid)/cdis
         deg_angp = angp*180/np.pi
 

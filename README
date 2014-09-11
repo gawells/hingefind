@@ -14,12 +14,12 @@ USAGE
 	> hingefind.py  -d1 0 -d2 1 -e 1 -m 1lfg.pdb -r 1lfh.pdb 
 
 - To determine the hinge-bending angle between domains using atom selections:
-	> hingefind.py  -d1 "resid 5 to 85 87 88 90 91 251 to 293 295 to 302 304 to\
-	 332 685 687 to 689 691 and name CA" -d2 "resid 92 to 100 104 to 140 143 to\
+	> hingefind.py  -d1 "resid 5 to 85 87 88 90 91 251 to 293 295 to 302 304 to
+	 332 685 687 to 689 691 and name CA" -d2 "resid 92 to 100 104 to 140 143 to
 	 218 220 to 250 and name CA" -e 1 -m 1lfg.pdb -r 1lfh.pdb
 
 - How to calculate the hinge-bending angle over a trajectory:
-	> hingefind.py -s ionized.pdb  -d1 0 -d2 1 -e 1 -m open.pdb -r closed.pdb \
+	> hingefind.py -s ionized.pdb  -d1 0 -d2 1 -e 1 -m open.pdb -r closed.pdb 
 	 -s ionized.pdb -t trajectory.dcd
 
 	- Note: Inputs for -m and -r are used for the domain-finding. The results 
